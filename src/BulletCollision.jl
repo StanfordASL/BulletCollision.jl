@@ -73,14 +73,14 @@ function convex_hull{V<:AbstractVector}(pts::Vector{V})
 end
 
 convex_hull{V<:AbstractVector}(pts::V...) = convex_hull(collect(pts))
-geometry_type_to_BT(shape::HomogenousMesh) = BT.convex_hull(shape.vertices)
+geometry_type_to_BT(shape::HomogenousMesh) = convex_hull(shape.vertices)
 convex_hull_box(lo::AbstractVector, hi::AbstractVector) = convex_hull([SVector{3}([lo hi][[1,2,3] + 3*[i,j,k]]) for i=0:1, j=0:1, k=0:1]...)
 
 function geometry_type_to_BT(shape::HyperRectangle,hull::Bool=true)
   if hull
-    return BT.convex_hull_box(SVector{3}(shape.origin),shape.origin+shape.widths)
+    return convex_hull_box(SVector{3}(shape.origin),shape.origin+shape.widths)
   end
-  return BT.box(SVector{3}(shape.origin),shape.origin+shape.widths)
+  return box(SVector{3}(shape.origin),shape.origin+shape.widths)
 end
 
 function convex_hull_cylinder(p1::AbstractVector, p2::AbstractVector, r::AbstractFloat, n::Int=25)
@@ -91,7 +91,7 @@ function convex_hull_cylinder(p1::AbstractVector, p2::AbstractVector, r::Abstrac
               (p2 + r*cos(2*pi*i/n)*d1 + r*sin(2*pi*i/n)*d2 for i in 1:n)...)
 end
 
-geometry_type_to_BT(shape::Cylinder) = BT.convex_hull_cylinder(SVector{3}(shape.origin), SVector{3}(shape.origin+shape.extremity), shape.r)
+geometry_type_to_BT(shape::Cylinder) = convex_hull_cylinder(SVector{3}(shape.origin), SVector{3}(shape.origin+shape.extremity), shape.r)
 
 function sphere(c::AbstractVector, r::AbstractFloat)
   icxx"""
@@ -104,7 +104,7 @@ function sphere(c::AbstractVector, r::AbstractFloat)
   """
 end
 
-geometry_type_to_BT(shape::HyperSphere) = BT.sphere(SVector{3}(shape.center),shape.r)
+geometry_type_to_BT(shape::HyperSphere) = sphere(SVector{3}(shape.center),shape.r)
 
 ### concave shape made out of convex sub parts called child shapes
 ### each child shape has its own local offset transform relative to bBulletCompoundShapePtrtCompoundShape
