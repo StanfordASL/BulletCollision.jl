@@ -1,15 +1,9 @@
-#__precompile__()
 __precompile__(false)
 module BulletCollision
 
 using Cxx
 using GeometryTypes
 using StaticArrays
-
-mutable struct test_struct
-  a
-  b
-end
 
 include("load_bullet.jl")
 
