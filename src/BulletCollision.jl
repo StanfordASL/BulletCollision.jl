@@ -4,6 +4,8 @@ module BulletCollision
 using Cxx
 using GeometryTypes
 using StaticArrays
+using Libdl
+using LinearAlgebra
 
 include("load_bullet.jl")
 
@@ -51,7 +53,7 @@ function box(lo::AbstractVector, hi::AbstractVector)
   """
 end
 
-function convex_hull{V<:AbstractVector}(pts::Vector{V})
+function convex_hull(pts::Vector{V}) where V <: AbstractVector
   convex_hull = icxx"""
   btCollisionObject* convex_hull = new btCollisionObject();
   btConvexHullShape* convex_hull_shape = new btConvexHullShape();
@@ -66,7 +68,7 @@ function convex_hull{V<:AbstractVector}(pts::Vector{V})
   convex_hull
 end
 
-convex_hull{V<:AbstractVector}(pts::V...) = convex_hull(collect(pts))
+convex_hull(pts::V...) where V <: AbstractVector = convex_hull(collect(pts))
 geometry_type_to_BT(shape::HomogenousMesh) = convex_hull(shape.vertices)
 convex_hull_box(lo::AbstractVector, hi::AbstractVector) = convex_hull([SVector{3}([lo hi][[1,2,3] + 3*[i,j,k]]) for i=0:1, j=0:1, k=0:1]...)
 
@@ -78,7 +80,7 @@ function geometry_type_to_BT(shape::HyperRectangle,hull::Bool=true)
 end
 
 function convex_hull_cylinder(p1::AbstractVector, p2::AbstractVector, r::AbstractFloat, n::Int=25)
-  Q, _ = qr(reshape(p2-p1,(3,1)), thin=false)
+  Q, _ = LinearAlgebra.qr(reshape(p2-p1,(3,1)))
   #Q, _ = qr((p2-p1)'', thin=false) # Ed's code
   d1, d2 = Q[:,2], Q[:,3]
   convex_hull((p1 + r*cos(2*pi*i/n)*d1 + r*sin(2*pi*i/n)*d2 for i in 1:n)...,
@@ -176,7 +178,7 @@ function get_convex_components(cs::BulletCollisionShapePtr, tr::BulletTransformV
   end
 end
 
-type BulletStaticEnvironment
+mutable struct BulletStaticEnvironment
   robot::BulletCollisionObjectPtr
   convex_robot_components::Vector{BulletCollisionObjectPtr}    # when robot's world transform is the identity; TODO(acauligi): set_transformation is unsafe
   environment::BulletCollisionWorldPtr
@@ -311,7 +313,7 @@ function distance(CC::BulletStaticEnvironment, ri::Int, tr::AbstractVector, ei::
   distance(rc, ec)
 end
 
-function distance_gradient_finite_difference{T}(CC::BulletStaticEnvironment, ri::Int, tr::SVector{3,T}, ei::Int, dx::T = T(.01))
+function distance_gradient_finite_difference(CC::BulletStaticEnvironment, ri::Int, tr::SVector{3,T}, ei::Int, dx::T = T(.01)) where T
     trm = MVector(tr)
     function gradi(i)
         tri = trm[i]
@@ -323,14 +325,14 @@ function distance_gradient_finite_difference{T}(CC::BulletStaticEnvironment, ri:
     SVector{3}([gradi(i) for i in 1:3])
 end
 
-function pairwise_convex_convex_distances{T}(v::AbstractVector{T}, CC::BulletStaticEnvironment, threshold = T(Inf))
+function pairwise_convex_convex_distances(v::AbstractVector{T}, CC::BulletStaticEnvironment, threshold = T(Inf)) where T
   foreach(rc -> set_transformation(rc, v), CC.convex_robot_components)
   pairwise_iter = ((ri, ei, distance(rc, ec)) for (ri, rc) in enumerate(CC.convex_robot_components),
                                                   (ei, ec) in enumerate(CC.convex_env_components))
   collect(filter(x -> x[3][1] < threshold, pairwise_iter))    # note: filter must be collected now because of set_transformation
 end
 
-function pairwise_convex_convex_distances{T}(v::AbstractVector{T}, CC::BulletStaticEnvironment, W::AbstractMatrix{T}, threshold = T(Inf))
+function pairwise_convex_convex_distances(v::AbstractVector{T}, CC::BulletStaticEnvironment, W::AbstractMatrix{T}, threshold = T(Inf)) where T
   foreach(rc -> set_transformation(rc, v), CC.convex_robot_components)
   pairwise_iter = ((ri, ei, distance(rc, ec, W)) for (ri, rc) in enumerate(CC.convex_robot_components),
                                                      (ei, ec) in enumerate(CC.convex_env_components))
